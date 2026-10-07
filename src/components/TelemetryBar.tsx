@@ -13,6 +13,8 @@ interface TelemetryBarProps {
   syncSeconds: number;
   onManualRefresh: () => void;
   isRefreshing: boolean;
+  onTriggerGeolocation?: () => void;
+  isLocating?: boolean;
 }
 
 export const TelemetryBar: React.FC<TelemetryBarProps> = ({
@@ -26,6 +28,8 @@ export const TelemetryBar: React.FC<TelemetryBarProps> = ({
   syncSeconds,
   onManualRefresh,
   isRefreshing,
+  onTriggerGeolocation,
+  isLocating = false,
 }) => {
   const [dropdownOpen, setDropdownOpen] = React.useState(false);
   const selectedStop = busStops.find(s => s.code === selectedStopCode) || busStops[0];
@@ -35,15 +39,22 @@ export const TelemetryBar: React.FC<TelemetryBarProps> = ({
       <div className="max-w-[1720px] mx-auto flex flex-wrap items-center justify-between gap-3">
         {/* Left Side: GPS Coordinates Pill + Nearest Stop Selector */}
         <div className="flex flex-wrap items-center gap-2.5">
-          {/* GPS Fixed Badge */}
-          <div className="flex items-center gap-1.5 px-2.5 py-1 bg-white border border-slate-200 rounded-full font-mono text-slate-700 shadow-2xs">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span>
-            <span className="font-semibold text-emerald-800 text-[11px] tracking-wide">GPS FIXED</span>
+          {/* GPS Fixed Badge / Button */}
+          <button
+            onClick={onTriggerGeolocation}
+            type="button"
+            className="flex items-center gap-1.5 px-2.5 py-1 bg-white hover:bg-slate-50 border border-slate-200 rounded-full font-mono text-slate-700 shadow-2xs cursor-pointer transition-colors"
+            title="Click to detect live GPS from your device"
+          >
+            <span className={`w-2 h-2 rounded-full ${isLocating ? 'bg-amber-500 animate-ping' : 'bg-emerald-500'} shrink-0`}></span>
+            <span className="font-semibold text-emerald-800 text-[11px] tracking-wide">
+              {isLocating ? 'LOCATING...' : 'GPS FIXED'}
+            </span>
             <span className="text-slate-600 text-[11px]">{gpsCoords}</span>
             <span className="bg-slate-100 text-slate-500 px-1.5 py-0.2 rounded text-[10px] font-medium border border-slate-200/60">
               {gpsAccuracy}
             </span>
-          </div>
+          </button>
 
           {/* Nearest Stop Dropdown */}
           <div className="relative">

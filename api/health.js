@@ -8,10 +8,10 @@ export default async function handler(req, res) {
   // Enable CORS
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,POST');
   res.setHeader(
     'Access-Control-Allow-Headers',
-    'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, AccountKey'
+    'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, AccountKey, accountkey, x-lta-account-key'
   );
 
   if (req.method === 'OPTIONS') {
@@ -19,20 +19,60 @@ export default async function handler(req, res) {
     return;
   }
 
-  const accountKey = process.env.LTA_ACCOUNT_KEY || process.env.VITE_LTA_ACCOUNT_KEY || '';
-  const hasLtaKey = Boolean(accountKey && accountKey.trim().length > 0);
+  const headerKey =
+    req.headers['accountkey'] ||
+    req.headers['account-key'] ||
+    req.headers['x-lta-account-key'] ||
+    '';
+  const queryKey = req.query?.AccountKey || req.query?.accountKey || '';
+  const envKey = process.env.LTA_ACCOUNT_KEY || process.env.VITE_LTA_ACCOUNT_KEY || '';
+
+  const accountKey = (headerKey || queryKey || envKey || '').toString().trim();
+  const hasLtaKey = accountKey.length > 0;
+
+  let liveVerification = null;
+  if (hasLtaKey) {
+    try {
+      const testRes = await fetch(
+        'https://datamall2.mytransport.sg/ltaodataservice/v3/BusArrival?BusStopCode=08031&ServiceNo=65',
+        {
+          method: 'GET',
+          headers: {
+            AccountKey: accountKey,
+            accept: 'application/json'
+          }
+        }
+      );
+      liveVerification = {
+        httpStatus: testRes.status,
+        authorized: testRes.ok,
+        statusText: testRes.statusText
+      };
+    } catch (e) {
+      liveVerification = {
+        httpStatus: 0,
+        authorized: false,
+        error: e instanceof Error ? e.message : String(e)
+      };
+    }
+  }
 
   const payload = {
     status: 'ok',
     service: 'SGNextBus API',
-    version: '1.0.0',
+    version: '1.2.0',
     timestamp: new Date().toISOString(),
     uptimeSeconds: process.uptime ? Math.round(process.uptime()) : null,
     ltaDataMall: {
       accountKeyConfigured: hasLtaKey,
       keyMasked: hasLtaKey ? `${accountKey.slice(0, 4)}...${accountKey.slice(-4)}` : null,
       apiEndpoint: 'https://datamall2.mytransport.sg/ltaodataservice/v3/BusArrival',
-      status: hasLtaKey ? 'READY_LIVE_SYNC' : 'AWAITING_LTA_ACCOUNT_KEY'
+      status: hasLtaKey
+        ? liveVerification?.authorized
+          ? 'VERIFIED_ACTIVE'
+          : `KEY_REJECTED_${liveVerification?.httpStatus || 'ERROR'}`
+        : 'AWAITING_LTA_ACCOUNT_KEY',
+      liveVerification
     },
     endpoints: [
       {
@@ -53,5 +93,6 @@ export default async function handler(req, res) {
     ]
   };
 
+  res.setHeader('Cache-Control', 'no-cache');
   res.status(200).json(payload);
 }

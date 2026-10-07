@@ -21,6 +21,10 @@ interface NearbyStopsViewProps {
   onToggleFavorite: (serviceNo: string) => void;
   onOpenAlightAlert: () => void;
   alightAlertActive: boolean;
+  selectedStopCode?: string;
+  activeStopServices?: BusService[];
+  isLiveApi?: boolean;
+  lastSyncTime?: string;
 }
 
 export const NearbyStopsView: React.FC<NearbyStopsViewProps> = ({
@@ -31,6 +35,10 @@ export const NearbyStopsView: React.FC<NearbyStopsViewProps> = ({
   onToggleFavorite,
   onOpenAlightAlert,
   alightAlertActive,
+  selectedStopCode = '08031',
+  activeStopServices,
+  isLiveApi = false,
+  lastSyncTime,
 }) => {
   const [busFilter, setBusFilter] = useState('');
   const [isCompact, setIsCompact] = useState(false);
@@ -45,13 +53,30 @@ export const NearbyStopsView: React.FC<NearbyStopsViewProps> = ({
     setExpandedStops(prev => ({ ...prev, [code]: !prev[code] }));
   };
 
-  const primaryStop = busStops[0];
-  const secondaryStops = busStops.slice(1);
+  // Resolve primary stop dynamically based on selectedStopCode
+  const primaryStop =
+    busStops.find(s => s.code === selectedStopCode) ||
+    busStops[0] || {
+      code: selectedStopCode,
+      name: `Bus Stop (${selectedStopCode})`,
+      roadName: 'Singapore Transit Network',
+      description: 'Active Boarding Zone',
+      distanceMeters: 65,
+      walkMinutes: 1,
+      services: [],
+    };
+
+  const secondaryStops = busStops.filter(s => s.code !== primaryStop.code);
+
+  // Use dynamic activeStopServices if provided, otherwise fallback to stop's static services
+  const rawServices = (activeStopServices && activeStopServices.length > 0)
+    ? activeStopServices
+    : primaryStop.services;
 
   // Filter services by bus number
-  const filteredPrimaryServices = primaryStop?.services.filter(s =>
+  const filteredPrimaryServices = rawServices.filter(s =>
     busFilter ? s.serviceNo.toLowerCase().includes(busFilter.toLowerCase()) : true
-  ) || [];
+  );
 
   return (
     <div className="max-w-[1720px] mx-auto p-4 lg:p-6">
@@ -108,6 +133,11 @@ export const NearbyStopsView: React.FC<NearbyStopsViewProps> = ({
                     <span className="bg-emerald-400/25 text-emerald-100 text-[10px] font-bold px-2 py-0.2 rounded uppercase tracking-wider border border-emerald-300/30">
                       Active Boarding
                     </span>
+                    {isLiveApi && (
+                      <span className="bg-white/20 text-white text-[9px] font-mono font-bold px-1.5 py-0.2 rounded uppercase tracking-wider border border-white/30 animate-pulse">
+                        LIVE LTA v3
+                      </span>
+                    )}
                   </div>
                   <p className="text-[11px] text-emerald-100/90 font-normal mt-0.5">
                     {primaryStop.roadName} • {primaryStop.description}
@@ -119,8 +149,8 @@ export const NearbyStopsView: React.FC<NearbyStopsViewProps> = ({
               <div className="flex items-center gap-1.5 text-right bg-white/10 px-2.5 py-1 rounded-lg border border-white/15">
                 <Navigation className="w-3.5 h-3.5 text-emerald-200 shrink-0" />
                 <div className="leading-tight">
-                  <div className="text-xs font-bold font-mono">65m</div>
-                  <div className="text-[10px] text-emerald-100">~1 min walk</div>
+                  <div className="text-xs font-bold font-mono">{primaryStop.distanceMeters || 65}m</div>
+                  <div className="text-[10px] text-emerald-100">~{primaryStop.walkMinutes || 1} min walk</div>
                 </div>
               </div>
             </div>

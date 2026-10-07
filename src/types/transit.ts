@@ -64,6 +64,8 @@ export interface BusStop {
   directionDesc?: string;
   distanceMeters: number;
   walkMinutes: number;
+  latitude?: number;
+  longitude?: number;
   isActiveBoarding?: boolean;
   services: BusService[];
   compactServices?: {
