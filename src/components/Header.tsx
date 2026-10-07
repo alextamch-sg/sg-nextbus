@@ -11,6 +11,7 @@ interface HeaderProps {
   isRefreshing: boolean;
   currentLocationName: string;
   onToggleLocationModal: () => void;
+  onOpenApiStatus: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -23,6 +24,7 @@ export const Header: React.FC<HeaderProps> = ({
   isRefreshing,
   currentLocationName,
   onToggleLocationModal,
+  onOpenApiStatus,
 }) => {
   return (
     <header className="bg-white border-b border-slate-200 sticky top-0 z-30 px-4 lg:px-6 py-2.5 shadow-[0_1px_2px_rgba(0,0,0,0.03)]">
@@ -54,13 +56,18 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
 
           {/* LTA Data Live Sync badge */}
-          <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50/80 border border-emerald-200/90 rounded-full text-[11px] font-medium text-emerald-800">
+          <button
+            onClick={onOpenApiStatus}
+            type="button"
+            className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50/80 hover:bg-emerald-100/80 border border-emerald-200/90 rounded-full text-[11px] font-medium text-emerald-800 cursor-pointer transition-colors"
+            title="Click to check API Health (/api/health) and LTA DataMall Key status"
+          >
             <span className="relative flex h-2 w-2">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
             </span>
             <span>LTA Data Live Sync</span>
-          </div>
+          </button>
         </div>
 
         {/* Center: Search trigger & Navigation tabs */}

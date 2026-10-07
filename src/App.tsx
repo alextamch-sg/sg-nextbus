@@ -8,11 +8,12 @@ import { RouteExplorerView } from './components/RouteExplorerView';
 import { ServiceMapView } from './components/ServiceMapView';
 import { AlightAlertModal } from './components/AlightAlertModal';
 import { CommandPalette } from './components/CommandPalette';
+import { ApiStatusModal } from './components/ApiStatusModal';
 import {
   BUS_STOPS_DATABASE,
   INITIAL_SERVICES,
 } from './data/singaporeTransitData';
-import { BusService, BusStop } from './types/transit';
+import { BusService, BusStop, CrowdingLevel, BusDeck } from './types/transit';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<'nearby' | 'favorites' | 'explorer' | 'map'>('nearby');
@@ -38,38 +39,76 @@ export default function App() {
   // Command palette
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState<boolean>(false);
 
+  // API Status Modal
+  const [isApiStatusModalOpen, setIsApiStatusModalOpen] = useState<boolean>(false);
+
   // GPS Simulated Location
   const [currentLocationName, setCurrentLocationName] = useState<string>('Dhoby Ghaut / Orchard');
   const [gpsCoords, setGpsCoords] = useState<string>('1.2995° N, 103.8458° E');
   const [gpsAccuracy, setGpsAccuracy] = useState<string>('±8m');
   const [isLocationModalOpen, setIsLocationModalOpen] = useState<boolean>(false);
 
-  // Handle manual or automatic telemetry refresh
-  const triggerRefresh = useCallback(() => {
+  // Handle manual or automatic telemetry refresh from /api/bus-arrival
+  const triggerRefresh = useCallback(async () => {
     setIsRefreshing(true);
     setSyncCountdown(15);
 
-    // Simulate subtle dynamic shifts in bus arrival minutes and distance
-    setTimeout(() => {
-      setServices(prev => {
-        const next = { ...prev };
-        // Jitter service 65 distance and arrivals
-        if (next['65']) {
-          const currentDistance = next['65'].activeBusTelemetry?.distanceToStopMeters || 30;
-          const newDist = Math.max(10, (currentDistance + (Math.random() > 0.5 ? -10 : 5)));
-          next['65'] = {
-            ...next['65'],
-            activeBusTelemetry: {
-              ...next['65'].activeBusTelemetry!,
-              distanceToStopMeters: newDist,
-            },
-          };
+    try {
+      const response = await fetch(`/api/bus-arrival?BusStopCode=${selectedStopCode}`);
+      if (response.ok) {
+        const data = await response.json();
+        if (data && Array.isArray(data.Services) && data.Services.length > 0) {
+          setServices(prev => {
+            const next = { ...prev };
+            const now = Date.now();
+
+            data.Services.forEach((s: any) => {
+              const serviceNo = s.ServiceNo;
+              if (next[serviceNo]) {
+                const parseArrival = (busObj: any) => {
+                  if (!busObj || !busObj.EstimatedArrival) {
+                    return { min: '--' as const, crowding: 'SEA' as CrowdingLevel, deck: 'SD' as BusDeck, isWab: false };
+                  }
+                  const etaTime = new Date(busObj.EstimatedArrival).getTime();
+                  const diffMin = Math.round((etaTime - now) / 60000);
+                  const min = diffMin <= 1 ? ('Arr' as const) : diffMin;
+                  const crowding = (busObj.Load || 'SEA') as CrowdingLevel;
+                  const deck = (busObj.Type || 'DD') as BusDeck;
+                  const isWab = busObj.Feature === 'WAB';
+                  return { min, crowding, deck, isWab };
+                };
+
+                const nextBus = parseArrival(s.NextBus);
+                const secondBus = parseArrival(s.NextBus2);
+                const thirdBus = parseArrival(s.NextBus3);
+
+                next[serviceNo] = {
+                  ...next[serviceNo],
+                  nextBus: { ...next[serviceNo].nextBus, ...nextBus },
+                  secondBus: { ...next[serviceNo].secondBus, ...secondBus },
+                  thirdBus: { ...next[serviceNo].thirdBus, ...thirdBus },
+                };
+
+                if (selectedService.serviceNo === serviceNo) {
+                  setSelectedService(curr => ({
+                    ...curr,
+                    nextBus: { ...curr.nextBus, ...nextBus },
+                    secondBus: { ...curr.secondBus, ...secondBus },
+                    thirdBus: { ...curr.thirdBus, ...thirdBus },
+                  }));
+                }
+              }
+            });
+            return next;
+          });
         }
-        return next;
-      });
+      }
+    } catch (err) {
+      console.warn('API sync warning:', err);
+    } finally {
       setIsRefreshing(false);
-    }, 450);
-  }, []);
+    }
+  }, [selectedStopCode, selectedService.serviceNo]);
 
   // Sync Countdown Timer Loop
   useEffect(() => {
@@ -145,6 +184,7 @@ export default function App() {
         isRefreshing={isRefreshing}
         currentLocationName={currentLocationName}
         onToggleLocationModal={() => setIsLocationModalOpen(true)}
+        onOpenApiStatus={() => setIsApiStatusModalOpen(true)}
       />
 
       {/* Telemetry Bar (GPS, Nearest Stop, Radius filter, Sync button) */}
@@ -250,6 +290,12 @@ export default function App() {
           setSelectedStopCode(stopCode);
           setActiveTab('nearby');
         }}
+      />
+
+      {/* API Health & Diagnostics Monitor Modal */}
+      <ApiStatusModal
+        isOpen={isApiStatusModalOpen}
+        onClose={() => setIsApiStatusModalOpen(false)}
       />
 
       {/* Location Switcher Modal */}
