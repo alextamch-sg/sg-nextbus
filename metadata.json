@@ -1,0 +1,6 @@
+{
+  "name": "SGNextBus - LTA DataMall Live",
+  "description": "Singapore real-time bus arrivals, corridor telemetry schematic, and live stop progression dashboard.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
